@@ -2,8 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const {v4: uuidv4} = require("uuid");
-const {checkTurnWinner, checkMatchWinner} = require("./lib/chifoumi");
+const { v4: uuidv4 } = require("uuid");
+const { checkTurnWinner, checkMatchWinner } = require("./lib/chifoumi");
 const NotificationCenter = require("./lib/notificationCenter");
 const createToken = require("./lib/jwt").createToken;
 const verifyJwt = require("./middlewares/verifyJwt");
@@ -15,86 +15,103 @@ const turnValidator = require("./middlewares/turnValidator");
 app.use(express.json());
 app.use(cors());
 
-app.post("/login", async function(req, res) {
-  let user = await User.findOne({username: req.body.username});
-  if (!user) {
-    user = new User({
-      ...req.body,
-      _id: uuidv4(),
-    });
-    user = await user.save();
+app.post("/login", async function (req, res) {
+  try {
+    let user = await User.findOne({ username: req.body.username });
+    if (!user) {
+      user = new User({
+        ...req.body,
+        _id: uuidv4(),
+      });
+      user = await user.save();
+    }
+    res.json({ token: await createToken(user) });
+  } catch (error) {
+    res.status(500).json(error);
   }
-  res.json({token: await createToken(user)});
 });
 
-app.post("/matches", verifyJwt(), async function(req, res) {
-  let event = {};
-  if (
-    await Match.findOne({
-      "user1._id": req.user._id,
-      "user2": null,
-    })
-  ) {
-    return res.status(400).json({match: "You already have a match"});
-  }
+app.post("/matches", verifyJwt(), async function (req, res) {
+  try {
+    let event = {};
+    if (
+      await Match.findOne({
+        "user1._id": req.user._id,
+        user2: null,
+      })
+    ) {
+      return res.status(400).json({ match: "You already have a match" });
+    }
 
-  let match = await Match.findOne({
-    "user1._id": {$ne: req.user._id},
-    "user2": null,
-  });
-  if (!match) {
-    match = new Match({
-      user1: req.user,
+    let match = await Match.findOne({
+      "user1._id": { $ne: req.user._id },
       user2: null,
-      turns: [],
     });
-    event.type = "PLAYER1_JOIN";
-    event.payload = {
-      user: req.user.username,
-    };
-  } else {
-    match.user2 = req.user;
-    event.type = "PLAYER2_JOIN";
-    event.payload = {
-      user: req.user.username,
-    };
-  }
-  event.matchId = match._id;
-  match = await match.save();
-  res.status(201).json(match);
-  NotificationCenter.notify(event);
-  if (match.user2) {
-    event = {
-      type: "NEW_TURN",
-      matchId: match._id,
-      payload: {
-        turnId: 1,
-      },
-    };
+    if (!match) {
+      match = new Match({
+        user1: req.user,
+        user2: null,
+        turns: [],
+      });
+      event.type = "PLAYER1_JOIN";
+      event.payload = {
+        user: req.user.username,
+      };
+    } else {
+      match.user2 = req.user;
+      event.type = "PLAYER2_JOIN";
+      event.payload = {
+        user: req.user.username,
+      };
+    }
+    event.matchId = match._id;
+    match = await match.save();
+    res.status(201).json(match);
     NotificationCenter.notify(event);
+    if (match.user2) {
+      event = {
+        type: "NEW_TURN",
+        matchId: match._id,
+        payload: {
+          turnId: 1,
+        },
+      };
+      NotificationCenter.notify(event);
+    }
+  } catch (error) {
+    res.status(500).json(error);
   }
 });
-app.get("/matches", verifyJwt(), async function(req, res) {
-  const match = await Match.find({
-    $or: [{"user1._id": req.user._id}, {"user2._id": req.user._id}],
-    winner: {$exists: true},
-  });
-  if (match) res.json(match);
+app.get("/matches", verifyJwt(), async function (req, res) {
+  try {
+    const match = await Match.find({
+      $or: [{ "user1._id": req.user._id }, { "user2._id": req.user._id }],
+      winner: { $exists: true },
+    });
+    if (match) res.json(match);
+  } catch (error) {
+    res.status(500).json(error);
+  }
 });
 app.get("/matches/:id", verifyJwt(), async (req, res) => {
-  const match = await Match.findOne({
-    _id: req.params.id,
-    $or: [{"user1._id": req.user._id}, {"user2._id": req.user._id}],
-    winner: {$exists: true},
-  });
-  if (match) res.json(match);
-  else res.sendStatus(404);
+  try {
+    const match = await Match.findOne({
+      _id: req.params.id,
+      $or: [{ "user1._id": req.user._id }, { "user2._id": req.user._id }],
+      winner: { $exists: true },
+    });
+    if (match) res.json(match);
+    else res.sendStatus(404);
+  } catch (error) {
+    res.status(500).json(error);
+  }
 });
 app.post(
-    "/matches/:id/turns/:idTurn",
-    verifyJwt(),
-    turnValidator,
-    async function(req, res) {
+  "/matches/:id/turns/:idTurn",
+  verifyJwt(),
+  turnValidator,
+  async function (req, res) {
+    try {
       const idTurn = parseInt(req.params.idTurn);
       const match = req.match;
       const turn = req.turn;
@@ -135,24 +152,31 @@ app.post(
           });
         }
       }
-    },
+    } catch (error) {
+      res.status(500).json(error);
+    }
+  }
 );
 
-app.get("/matches/:id/subscribe", verifyJwt(), function(request, response) {
-  const clientId = request.user._id;
+app.get("/matches/:id/subscribe", verifyJwt(), function (request, response) {
+  try {
+    const clientId = request.user._id;
 
-  const newClient = {
-    id: clientId,
-    matchId: request.params.id,
-    response,
-  };
+    const newClient = {
+      id: clientId,
+      matchId: request.params.id,
+      response,
+    };
 
-  NotificationCenter.addClient(newClient).push(newClient);
+    NotificationCenter.addClient(newClient).push(newClient);
 
-  request.on("close", () => {
-    console.log(`${clientId} Connection closed`);
-    NotificationCenter.removeClient(newClient);
-  });
+    request.on("close", () => {
+      console.log(`${clientId} Connection closed`);
+      NotificationCenter.removeClient(newClient);
+    });
+  } catch (error) {
+    response.status(500).json(error);
+  }
 });
 
 module.exports = app;
