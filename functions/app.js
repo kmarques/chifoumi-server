@@ -84,11 +84,27 @@ app.post("/matches", verifyJwt(), async function (req, res) {
 });
 app.get("/matches", verifyJwt(), async function (req, res) {
   try {
+    console.log(req.user);
     const match = await Match.find({
       $or: [{ "user1._id": req.user._id }, { "user2._id": req.user._id }],
-      winner: { $exists: true },
     });
-    if (match) res.json(match);
+    if (match)
+      res.json(
+        match.map((m) => {
+          m.turns = m.turns.map((turn) => {
+            if (!turn.winner) {
+              if (turn.user2 && m.user2._id !== req.user._id) {
+                turn.user2 = "?";
+              }
+              if (turn.user1 && m.user1._id !== req.user._id) {
+                turn.user1 = "?";
+              }
+            }
+            return turn;
+          });
+          return m;
+        })
+      );
   } catch (error) {
     res.status(500).json(error);
   }
@@ -98,7 +114,17 @@ app.get("/matches/:id", verifyJwt(), async (req, res) => {
     const match = await Match.findOne({
       _id: req.params.id,
       $or: [{ "user1._id": req.user._id }, { "user2._id": req.user._id }],
-      winner: { $exists: true },
+    });
+    match.turns = match.turns.map((turn) => {
+      if (!turn.winner) {
+        if (turn.user2 && match.user2._id !== req.user._id) {
+          turn.user2 = "?";
+        }
+        if (turn.user1 && match.user1._id !== req.user._id) {
+          turn.user1 = "?";
+        }
+      }
+      return turn;
     });
     if (match) res.json(match);
     else res.sendStatus(404);
