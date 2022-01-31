@@ -194,7 +194,7 @@ app.get("/matches/:id/subscribe", verifyJwt(), function (request, response) {
       response,
     };
 
-    NotificationCenter.addClient(newClient).push(newClient);
+    NotificationCenter.addClient(newClient);
 
     request.on("close", () => {
       console.log(`${clientId} Connection closed`);
