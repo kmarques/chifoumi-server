@@ -27,7 +27,7 @@ module.exports = {
     this.events.push(event);
     this.clients.forEach(
         (client) =>
-          client.matchId === event.matchId &&
+          client.matchId === event.matchId.toString() &&
         client.response.write(`data: ${JSON.stringify(event)}\n\n`),
     );
   },
