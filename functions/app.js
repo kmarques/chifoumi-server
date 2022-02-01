@@ -64,14 +64,14 @@ app.post("/matches", verifyJwt(), async function (req, res) {
         user: req.user.username,
       };
     }
-    event.matchId = match._id;
     match = await match.save();
+    event.matchId = match._id.valueOf();
     res.status(201).json(match);
     NotificationCenter.notify(event);
     if (match.user2) {
       event = {
         type: "NEW_TURN",
-        matchId: match._id,
+        matchId: match._id.valueOf(),
         payload: {
           turnId: 1,
         },
@@ -151,7 +151,7 @@ app.post(
       res.sendStatus(202);
       NotificationCenter.notify({
         type: isPlayer1 ? "PLAYER1_MOVED" : "PLAYER2_MOVED",
-        matchId: match._id,
+        matchId: match._id.valueOf(),
         payload: {
           turn: idTurn,
         },
@@ -159,7 +159,7 @@ app.post(
       if (turn.user1 && turn.user2) {
         NotificationCenter.notify({
           type: "TURN_ENDED",
-          matchId: match._id,
+          matchId: match._id.valueOf(),
           payload: {
             newTurnId: idTurn + 1,
             winner: checkTurnWinner(turn),
@@ -171,7 +171,7 @@ app.post(
           await match.save();
           NotificationCenter.notify({
             type: "MATCH_ENDED",
-            matchId: match._id,
+            matchId: match._id.valueOf(),
             payload: {
               winner: (match.winner && match.winner.username) || "draw",
             },
